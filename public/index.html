@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Guessing Game</title>
+    <style>
+      /* Simple styling for chat and controls
+      #chat {
+        border: 1px solid #ccc;
+        height: 300px;
+        overflow-y: scroll;
+        padding: 5px;
+      }
+      #messageInput {
+        width: 80%;
+      } */
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f4f4f4;
+        color: #333;
+      }
+
+      header {
+        background-color: #007bff;
+        color: white;
+        padding: 20px;
+        text-align: center;
+      }
+
+      h1 {
+        font-size: 2em;
+        margin: 0;
+      }
+
+      #chat {
+        border: 1px solid #ccc;
+        height: 300px;
+        overflow-y: scroll;
+        padding: 10px;
+        background-color: white;
+        margin-bottom: 10px;
+        max-width: 600px;
+        margin: 20px auto;
+        border-radius: 5px;
+      }
+
+      #chat p {
+        margin: 5px 0;
+        padding: 5px;
+        border-bottom: 1px solid #ddd;
+      }
+
+      #messageInput {
+        width: 80%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        margin-bottom: 10px;
+      }
+
+      #sendBtn {
+        padding: 10px;
+        border: 1px solid #007bff;
+        background-color: #007bff;
+        color: white;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 1em;
+      }
+
+      #sendBtn:hover {
+        background-color: #0056b3;
+      }
+
+      #gameControls {
+        max-width: 600px;
+        margin: 20px auto;
+        padding: 20px;
+        background-color: white;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+      }
+
+      #gameControls button {
+        padding: 10px;
+        background-color: #28a745;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 1em;
+        margin-bottom: 10px;
+      }
+
+      #gameControls button:hover {
+        background-color: #218838;
+      }
+
+      #gameControls input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        margin-bottom: 10px;
+      }
+
+      #masterControls {
+        display: none;
+      }
+
+      #masterControls input {
+        width: 100%;
+      }
+
+      #masterControls button {
+        background-color: #007bff;
+      }
+
+      #masterControls button:hover {
+        background-color: #0056b3;
+      }
+
+      footer {
+        text-align: center;
+        padding: 10px;
+        background-color: #007bff;
+        color: white;
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Guessing Game</h1>
+
+    <!-- Chat display -->
+    <div id="chat"></div>
+
+    <!-- Chat input -->
+    <input
+      type="text"
+      id="messageInput"
+      placeholder="Type a message or command"
+    />
+    <button id="sendBtn">Send</button>
+
+    <hr />
+
+    <div id="gameControls">
+      <!-- Session controls -->
+      <button id="createSessionBtn">Create Session (Game Master)</button>
+      <input type="text" id="sessionIdInput" placeholder="Session ID to join" />
+      <button id="joinSessionBtn">Join Session</button>
+      <br /><br />
+      <!-- Controls visible only for game master -->
+      <div id="masterControls" style="display: none">
+        <input type="text" id="usernameInput" placeholder="Your username" />
+        <br /><br />
+        <input type="text" id="questionInput" placeholder="Enter question" />
+        <input type="text" id="answerInput" placeholder="Enter answer" />
+        <button id="setQuestionBtn">Set Question</button>
+        <button id="startGameBtn">Start Game</button>
+      </div>
+    </div>
+
+    <!-- Include Socket.io client library -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io();
+      const chat = document.getElementById("chat");
+      const messageInput = document.getElementById("messageInput");
+      const sendBtn = document.getElementById("sendBtn");
+
+      const createSessionBtn = document.getElementById("createSessionBtn");
+      const joinSessionBtn = document.getElementById("joinSessionBtn");
+      const sessionIdInput = document.getElementById("sessionIdInput");
+      const masterControls = document.getElementById("masterControls");
+      const usernameInput = document.getElementById("usernameInput");
+      const questionInput = document.getElementById("questionInput");
+      const answerInput = document.getElementById("answerInput");
+      const setQuestionBtn = document.getElementById("setQuestionBtn");
+      const startGameBtn = document.getElementById("startGameBtn");
+
+      let currentSessionId = "";
+
+      // Helper to display messages in the chat div.
+      function addMessage(message) {
+        const p = document.createElement("p");
+        p.innerText = message;
+        chat.appendChild(p);
+        chat.scrollTop = chat.scrollHeight;
+      }
+
+      // Send a chat message.
+      sendBtn.addEventListener("click", () => {
+        const msg = messageInput.value;
+        socket.emit("chatMessage", { msg });
+        messageInput.value = "";
+      });
+
+      // Create session (as game master)
+      createSessionBtn.addEventListener("click", () => {
+        const username = usernameInput.value || "GameMaster";
+        socket.emit("createSession", { username });
+      });
+
+      // Join an existing session
+      joinSessionBtn.addEventListener("click", () => {
+        const sessionId = sessionIdInput.value;
+        const username = usernameInput.value || "Player";
+        socket.emit("joinSession", { sessionId, username });
+      });
+
+      // Set the question and answer (game master only)
+      setQuestionBtn.addEventListener("click", () => {
+        const question = questionInput.value;
+        const answer = answerInput.value;
+        socket.emit("setQuestion", { question, answer });
+      });
+
+      // Start the game session (game master only)
+      startGameBtn.addEventListener("click", () => {
+        socket.emit("startGame");
+      });
+
+      // Handle session creation event.
+      socket.on("sessionCreated", (data) => {
+        currentSessionId = data.sessionId;
+        addMessage(`Session created with ID: ${currentSessionId}`);
+        masterControls.style.display = "block";
+      });
+
+      // Update session info: number of players and their scores.
+      socket.on("sessionUpdate", (data) => {
+        addMessage(`Players connected: ${data.playerCount}`);
+        let playersInfo = "Players: ";
+        data.players.forEach((player) => {
+          playersInfo += `${player.username}(${player.score}) `;
+        });
+        addMessage(playersInfo);
+      });
+
+      // When the game starts, display the question.
+      socket.on("gameStarted", (data) => {
+        addMessage(`Game Started! Question: ${data.question}`);
+      });
+
+      // Handle game end events (either correct guess or time expired).
+      socket.on("gameEnded", (data) => {
+        addMessage(`Game Ended: ${data.msg}`);
+        if (data.answer) {
+          addMessage(`The answer was: ${data.answer}`);
+        }
+      });
+
+      // Display generic messages.
+      socket.on("message", (data) => {
+        addMessage(data.msg);
+      });
+
+      // Display chat messages.
+      socket.on("chatMessage", (data) => {
+        addMessage(`${data.username}: ${data.msg}`);
+      });
+
+      // Display error messages.
+      socket.on("errorMsg", (data) => {
+        addMessage(`Error: ${data.msg}`);
+      });
+    </script>
+  </body>
+</html>
